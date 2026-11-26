@@ -18,7 +18,7 @@ section{margin:26px 0}.notice{background:#f0fdfa;border:1px solid #b8e5dc;color:
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px}.stat strong{display:block;font-size:26px;color:var(--navy)}.stat small{color:var(--muted)}
 .panel{padding:18px;overflow:auto}.hide{display:none}.examBox{max-width:850px;margin:20px auto;background:white;border:1px solid var(--line);border-radius:16px;padding:24px}
 .qcard{border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0;background:#fff}.qtitle{font-weight:750;line-height:1.65;margin:0 0 12px}.option{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:9px;margin:7px 0;background:#f8fbfa;cursor:pointer;line-height:1.55}.option:hover{background:#edf7f5}.option input{margin-top:5px;accent-color:var(--blue)}.examActions{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:20px}.status{color:var(--muted);font-size:14px}.footer{text-align:center;color:var(--muted);font-size:12px;padding:25px 0}
-.result{background:#f8fbfa;border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0}.wrong{border-left:4px solid #d97706;padding:12px 14px;margin:10px 0;background:#fffbeb;border-radius:8px}
+input[type=text],input[type=date]{font:inherit}.result{background:#f8fbfa;border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0}.wrong{border-left:4px solid #d97706;padding:12px 14px;margin:10px 0;background:#fffbeb;border-radius:8px}
 @media(max-width:760px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}header{padding:25px 20px}.card p{min-height:0}.examBox{padding:16px}}
 </style>
 </head>
@@ -27,6 +27,15 @@ section{margin:26px 0}.notice{background:#f0fdfa;border:1px solid #b8e5dc;color:
 <main>
 <div class="top"><span class="badge">PGY 24M · Exam Portal</span><button class="secondary" onclick="showAdmin()">教學老師後台預覽</button></div>
 <div id="home">
+<section class="panel" style="margin-bottom:20px">
+<h2 style="margin-top:0">學員身分與訓練起始日</h2>
+<p class="status">請先輸入 PGY 員工編碼及 PGY 訓練起始日。員工編碼用於彙整三階段紀錄；起始日用於計算各階段是否如期完成。</p>
+<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px">
+<label>PGY 員工編碼<br><input id="employeeCode" autocomplete="off" placeholder="請輸入員工編碼" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;margin-top:6px"></label>
+<label>PGY 訓練起始日<br><input id="pgyStartDate" type="date" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;margin-top:6px"></label>
+</div>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px"><button class="primary" onclick="saveProfile()">確認學員資料</button><span class="status" id="profileStatus">尚未確認身分</span></div>
+</section>
 <div class="grid">
 <div class="card"><div class="stage">STAGE 01 · M01</div><h2>基礎知識與病人安全</h2><p>設備認識、基本生理、監測判讀與安全處置。</p><div class="tags"><span>20 題</span><span>每題 5 分</span><span>滿分 100</span></div><button class="primary" onclick="startExam(1)">進入第一階段</button></div>
 <div class="card"><div class="stage">STAGE 02 · M04–M12</div><h2>臨床應用與呼吸器判讀</h2><p>呼吸器波形、病人不同步、脫離評估與臨床應用。</p><div class="tags"><span>20 題</span><span>每題 5 分</span><span>滿分 100</span></div><button class="primary" onclick="startExam(2)">進入第二階段</button></div>
@@ -42,8 +51,8 @@ section{margin:26px 0}.notice{background:#f0fdfa;border:1px solid #b8e5dc;color:
 <div id="resultArea"></div>
 </div>
 <div id="admin" class="hide">
-<section><h2>教學老師後台｜本機預覽</h2><p class="status">目前作答紀錄僅存於此瀏覽器，尚未連接學員帳號或雲端資料庫。</p></section>
-<div class="panel"><div id="adminRecords">尚無作答紀錄。</div></div><p><button class="secondary" onclick="goHome()">返回首頁</button></p>
+<section><h2>教學老師後台｜本機預覽</h2><p class="status">目前作答紀錄僅存於此瀏覽器，尚未連接學員帳號或雲端資料庫；不同裝置或瀏覽器的紀錄不會自動同步。</p></section>
+<div class="panel"><button class="secondary" onclick="exportRecords()">匯出作答紀錄 CSV</button><div id="adminRecords" style="margin-top:16px">尚無作答紀錄。</div></div><p><button class="secondary" onclick="goHome()">返回首頁</button></p>
 </div>
 <div class="footer">Respiratory Care · PGY 24M · Three-stage Written Assessment</div>
 </main>
@@ -57,11 +66,25 @@ function saveRecords(r){localStorage.setItem(storageKey,JSON.stringify(r))}
 function setView(id){["home","exam","admin"].forEach(x=>document.getElementById(x).classList.add("hide"));document.getElementById(id).classList.remove("hide")}
 function goHome(){setView("home");refreshStats()}
 function refreshStats(){let r=records();document.getElementById("attemptCount").textContent=r.length;document.getElementById("answeredCount").textContent=r.reduce((n,x)=>n+(x.answered||0),0)}
+let learnerProfile=null, examStartedAt=null;
+function saveProfile(){
+ const code=document.getElementById("employeeCode").value.trim();
+ const date=document.getElementById("pgyStartDate").value;
+ if(!code||!date){alert("請完整輸入 PGY 員工編碼與訓練起始日。");return}
+ learnerProfile={employeeCode:code,pgyStartDate:date};
+ sessionStorage.setItem("rt_pgy_profile",JSON.stringify(learnerProfile));
+ document.getElementById("profileStatus").textContent="已確認："+code+"｜起始日："+date;
+}
+function loadProfile(){
+ try{learnerProfile=JSON.parse(sessionStorage.getItem("rt_pgy_profile")||"null")}catch(e){learnerProfile=null}
+ if(learnerProfile){document.getElementById("employeeCode").value=learnerProfile.employeeCode||"";document.getElementById("pgyStartDate").value=learnerProfile.pgyStartDate||"";document.getElementById("profileStatus").textContent="已確認："+learnerProfile.employeeCode+"｜起始日："+learnerProfile.pgyStartDate}
+}
 function startExam(n){
- activeStage=n;const stage=QUESTION_BANK.stages.find(s=>s.stage===n);currentQuestions=stage.questions;answers={};
+ if(!learnerProfile){alert("請先輸入並確認 PGY 員工編碼與訓練起始日。");document.getElementById("employeeCode").focus();return}
+ activeStage=n;const stage=QUESTION_BANK.stages.find(s=>s.stage===n);currentQuestions=stage.questions;answers={};examStartedAt=new Date().toISOString();
  document.getElementById("stageLabel").textContent="STAGE 0"+n;
  document.getElementById("examTitle").textContent=stageNames[n];
- document.getElementById("examStatus").textContent="共 "+currentQuestions.length+" 題｜每題 5 分｜請選擇一個答案";
+ document.getElementById("examStatus").textContent="共 "+currentQuestions.length+" 題｜每題 5 分｜開始時間："+new Date(examStartedAt).toLocaleString();
  document.getElementById("resultArea").innerHTML="";
  renderQuestions();setView("exam");window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -70,12 +93,13 @@ function renderQuestions(){
  box.innerHTML=currentQuestions.map((q,i)=>`<article class="qcard"><p class="qtitle">第 ${q.number} 題　${escapeHtml(q.stem)}</p>${q.options.map(o=>`<label class="option"><input type="radio" name="q${q.number}" value="${o.key}" ${answers[q.number]===o.key?"checked":""} onchange="answers[${q.number}]='${o.key}'"><span><b>${o.key}.</b> ${escapeHtml(o.text)}</span></label>`).join("")}</article>`).join("");
 }
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function saveDraft(){let r=records();r.push({stage:activeStage,stageName:stageNames[activeStage],date:new Date().toISOString(),answered:Object.keys(answers).length,total:currentQuestions.length,answers:{...answers},status:"暫存"});saveRecords(r);document.getElementById("resultArea").innerHTML='<div class="notice">作答已暫存在目前瀏覽器。</div>';refreshStats()}
+function saveDraft(){let r=records();r.push({employeeCode:learnerProfile?.employeeCode,pgyStartDate:learnerProfile?.pgyStartDate,stage:activeStage,stageName:stageNames[activeStage],startedAt:examStartedAt,submittedAt:new Date().toISOString(),date:new Date().toISOString(),answered:Object.keys(answers).length,total:currentQuestions.length,answers:{...answers},status:"暫存"});saveRecords(r);document.getElementById("resultArea").innerHTML='<div class="notice">作答已暫存在目前瀏覽器。</div>';refreshStats()}
 function submitExam(){
  const unanswered=currentQuestions.filter(q=>!answers[q.number]).length;
  if(unanswered && !confirm("尚有 "+unanswered+" 題未作答，仍要提交嗎？"))return;
  const keysReady=currentQuestions.every(q=>["A","B","C","D"].includes(q.correct_answer));
- let result={stage:activeStage,stageName:stageNames[activeStage],date:new Date().toISOString(),answered:Object.keys(answers).length,total:currentQuestions.length,answers:{...answers},status:keysReady?"已提交":"已提交（答案鍵待核定）"};
+ const submittedAt=new Date().toISOString();
+ let result={employeeCode:learnerProfile.employeeCode,pgyStartDate:learnerProfile.pgyStartDate,stage:activeStage,stageName:stageNames[activeStage],startedAt:examStartedAt,submittedAt,date:submittedAt,durationSeconds:examStartedAt?Math.max(0,Math.round((new Date(submittedAt)-new Date(examStartedAt))/1000)):null,answered:Object.keys(answers).length,total:currentQuestions.length,answers:{...answers},status:keysReady?"已提交":"已提交（答案鍵待核定）"};
  if(keysReady){
    result.correct=currentQuestions.filter(q=>answers[q.number]===q.correct_answer).length;
    result.score=result.correct*QUESTION_BANK.scoring.points_per_question;
@@ -87,7 +111,35 @@ function submitExam(){
  area.innerHTML=`<div class="result"><h3>本次成績：${result.score} / 100</h3><p>答對 ${result.correct} 題｜答錯或未作答 ${result.wrong.length} 題</p><h3>錯題檢討</h3>${result.wrong.length?result.wrong.map(w=>`<div class="wrong"><b>第 ${w.number} 題</b><p>${escapeHtml(w.stem)}</p><p>你的答案：${w.yourAnswer}｜正確答案：${w.correct}</p><p>解析：${escapeHtml(w.rationale)}</p></div>`).join(""):"本次無錯題。"}<button class="primary" onclick="markReviewDone()">完成錯題檢討</button></div>`;
 }
 function markReviewDone(){let r=records();if(!r.length)return;r[r.length-1].reviewCompleted=true;r[r.length-1].reviewCompletedAt=new Date().toISOString();saveRecords(r);document.getElementById("resultArea").insertAdjacentHTML("beforeend",'<div class="notice">已標記完成錯題檢討。</div>')}
-function showAdmin(){let r=records();document.getElementById("adminRecords").innerHTML=r.length?r.slice().reverse().map(x=>`<p><b>${escapeHtml(x.stageName)}</b>｜${new Date(x.date).toLocaleString()}｜作答 ${x.answered}/${x.total}｜${x.score===undefined?x.status:"分數 "+x.score+" / 100"}｜錯題檢討：${x.reviewCompleted?"已完成":"未完成／未適用"}</p>`).join(""):"尚無作答紀錄。";setView("admin")}
+function addMonths(dateStr,months){const d=new Date(dateStr+"T00:00:00");const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+months);const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last));return d}
+function stageDeadline(startDate,stage){
+ const months=stage===1?1:(stage===2?12:24);
+ const d=addMonths(startDate,months);d.setDate(d.getDate()-1);d.setHours(23,59,59,999);return d;
+}
+function formatDuration(sec){if(sec==null)return "—";const m=Math.floor(sec/60),s=sec%60;return m+" 分 "+s+" 秒"}
+function exportRecords(){const data=records();const rows=[["員工編碼","PGY起始日","階段","開始時間","提交時間","耗時秒","答題數","總題數","分數","錯題檢討完成"]];data.forEach(x=>rows.push([x.employeeCode||"",x.pgyStartDate||"",x.stageName||"",x.startedAt||"",x.submittedAt||x.date||"",x.durationSeconds??"",x.answered??"",x.total??"",x.score??"",x.reviewCompleted?"是":"否"]));const csv="\\ufeff"+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\\r\\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="RT_PGY_exam_records.csv";a.click();URL.revokeObjectURL(a.href)}
+function showAdmin(){
+ const all=records(), codes=[...new Set(all.map(x=>x.employeeCode).filter(Boolean))];
+ if(!all.length){document.getElementById("adminRecords").innerHTML="尚無作答紀錄。";setView("admin");return}
+ let summary=`<h3>三階段如期完成追蹤</h3><p class="status">預設期限：Stage 1＝PGY M01 結束；Stage 2＝M12 結束；Stage 3＝M24 結束。以訓練起始日推算，按「正式提交」時間判定。</p>`;
+ summary+=`<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:760px"><thead><tr><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">員工編碼</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">訓練起始日</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Stage 1｜M01</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Stage 2｜M04–M12</th><th style="text-align:left;padding:10px;border-bottom:1px solid var(--line)">Stage 3｜M12–M24</th></tr></thead><tbody>`;
+ const now=new Date();
+ codes.forEach(code=>{
+  const learner=all.filter(x=>x.employeeCode===code);const start=learner.find(x=>x.pgyStartDate)?.pgyStartDate||"";
+  const cells=[1,2,3].map(st=>{
+   const submitted=learner.filter(x=>x.stage===st&&x.submittedAt).sort((a,b)=>new Date(a.submittedAt)-new Date(b.submittedAt))[0];
+   if(!start)return "缺訓練起始日";
+   const due=stageDeadline(start,st);
+   if(submitted){const late=new Date(submitted.submittedAt)>due;return `${late?"逾期完成":"如期完成"}<br><small>${new Date(submitted.submittedAt).toLocaleDateString()}<br>期限 ${due.toLocaleDateString()}</small>`}
+   return now>due?`尚未完成（逾期）<br><small>期限 ${due.toLocaleDateString()}</small>`:`尚未完成<br><small>期限 ${due.toLocaleDateString()}</small>`;
+  });
+  summary+=`<tr><td style="padding:10px;border-bottom:1px solid var(--line)">${escapeHtml(code)}</td><td style="padding:10px;border-bottom:1px solid var(--line)">${escapeHtml(start||"—")}</td>${cells.map(c=>`<td style="padding:10px;border-bottom:1px solid var(--line)">${c}</td>`).join("")}</tr>`;
+ });
+ summary+="</tbody></table></div><h3>考試明細</h3>";
+ summary+=all.slice().reverse().map(x=>`<p><b>${escapeHtml(x.employeeCode||"未登錄")}</b>｜${escapeHtml(x.stageName)}｜開始：${x.startedAt?new Date(x.startedAt).toLocaleString():"—"}｜提交：${x.submittedAt?new Date(x.submittedAt).toLocaleString():new Date(x.date).toLocaleString()}｜耗時：${formatDuration(x.durationSeconds)}｜答題 ${x.answered}/${x.total}｜${x.score===undefined?escapeHtml(x.status):"分數 "+x.score+" / 100"}｜錯題檢討：${x.reviewCompleted?"已完成":"未完成／未適用"}</p>`).join("");
+ document.getElementById("adminRecords").innerHTML=summary;setView("admin");
+}
+loadProfile();
 refreshStats();
 </script>
 </body>
