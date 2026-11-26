@@ -66,45 +66,42 @@
     }
 
     async function signUp() {
-      const { email, password } = getInput();
+  const { email, password } = getInput();
 
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.href
-        }
-      });
+  // 先確認 Email 和密碼都有取得
+  if (!email || !password) {
+    message.textContent =
+      "請確認 Email 和密碼欄位都有填寫。";
+    return;
+  }
 
-      if (error) {
-        message.textContent = "註冊失敗：" + error.message;
-        return;
-      }
+  if (password.length < 8) {
+    message.textContent =
+      "測試密碼至少需要 8 碼。";
+    return;
+  }
 
-      message.textContent =
-        "註冊請求已送出。\n" +
-        "如果需要 Email 驗證，請到信箱點擊驗證連結。\n" +
-        "User ID：" + (data.user?.id || "尚未取得");
+  message.textContent = "正在註冊，請稍候……";
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email: email,
+    password: password,
+    options: {
+      emailRedirectTo: window.location.href
     }
+  });
 
-    async function signIn() {
-      const { email, password } = getInput();
+  if (error) {
+    message.textContent = "註冊失敗：" + error.message;
+    return;
+  }
 
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        message.textContent = "登入失敗：" + error.message;
-        return;
-      }
-
-      message.textContent =
-        "登入成功！\n" +
-        "Email：" + data.user.email + "\n" +
-        "User ID：" + data.user.id;
-    }
+  message.textContent =
+    "註冊請求已送出！\n" +
+    "Email：" + email + "\n" +
+    "User ID：" + (data.user?.id || "尚未取得") +
+    "\n請查看 Email 是否收到驗證信。";
+}
 
     async function signOut() {
       const { error } = await supabaseClient.auth.signOut();
