@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PGY Exam｜登入測試</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f4f7f8;
+    }
+    h2 { color: #176b68; }
+    input, button {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 16px;
+    }
+    button {
+      border: 0;
+      border-radius: 6px;
+      background: #176b68;
+      color: white;
+      cursor: pointer;
+    }
+    #message {
+      margin-top: 16px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <h2>PGY 三階段筆試｜登入測試</h2>
+
+  <input id="email" type="email" placeholder="測試 Email">
+  <input id="password" type="password" placeholder="測試密碼（至少 8 碼）">
+
+  <button onclick="signUp()">註冊測試帳號</button>
+  <button onclick="signIn()">登入</button>
+  <button onclick="signOut()">登出</button>
+
+  <div id="message">尚未登入</div>
+
+  <script>
+    const SUPABASE_URL = "https://mxdkywwaadjqyuvjnfws.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_LyAKEFqnBebsOG-qAn9tKw_wOxLfae9";
+
+    const supabaseClient = supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY
+    );
+
+    const message = document.getElementById("message");
+
+    function getInput() {
+      return {
+        email: document.getElementById("email").value.trim(),
+        password: document.getElementById("password").value
+      };
+    }
+
+    async function signUp() {
+      const { email, password } = getInput();
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.href
+        }
+      });
+
+      if (error) {
+        message.textContent = "註冊失敗：" + error.message;
+        return;
+      }
+
+      message.textContent =
+        "註冊請求已送出。\n" +
+        "如果需要 Email 驗證，請到信箱點擊驗證連結。\n" +
+        "User ID：" + (data.user?.id || "尚未取得");
+    }
+
+    async function signIn() {
+      const { email, password } = getInput();
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        message.textContent = "登入失敗：" + error.message;
+        return;
+      }
+
+      message.textContent =
+        "登入成功！\n" +
+        "Email：" + data.user.email + "\n" +
+        "User ID：" + data.user.id;
+    }
+
+    async function signOut() {
+      const { error } = await supabaseClient.auth.signOut();
+
+      message.textContent = error
+        ? "登出失敗：" + error.message
+        : "已登出";
+    }
+
+    async function checkSession() {
+      const { data } = await supabaseClient.auth.getSession();
+
+      if (data.session) {
+        message.textContent =
+          "目前已登入\n" +
+          "Email：" + data.session.user.email;
+      }
+    }
+
+    checkSession();
+  </script>
+</body>
+</html>
